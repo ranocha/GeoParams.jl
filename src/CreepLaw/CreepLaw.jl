@@ -9,7 +9,7 @@
 
 abstract type AbstractCreepLaw{T} <: AbstractConstitutiveLaw{T} end
 
-export isvolumetric, LinearViscous, PowerlawViscous, CorrectionFactor, AbstractCreepLaw, ArrheniusType
+export isvolumetric, LinearViscous, PowerlawViscous, CorrectionFactor, AbstractCreepLaw, ArrheniusType, MeltViscous
 
 # This computes correction factors to go from experimental data to tensor format
 function CorrectionFactor(a::AbstractCreepLaw{_T}) where {_T}
@@ -86,7 +86,6 @@ function compute_εII(a::LinearViscous, TauII; kwargs...)
 end
 
 """
-    
     compute_εII!(EpsII::AbstractArray{_T,N}, s::LinearViscous, TauII::AbstractArray{_T,N})
 """
 function compute_εII!(
@@ -141,7 +140,7 @@ end
 function dτII_dεII(a::LinearViscous, EpsII; kwargs...)
     @unpack η = a
 
-    return 2 * η
+    return 2.0 * η
 end
 
 # Print info 
@@ -174,8 +173,6 @@ where ``\\eta_0`` is the reference viscosity [Pa*s] at reference strain rate ``\
     T_O::GeoUnit{_T,U3} =   1.0NoUnits      # Offset temperature 
     T_η::GeoUnit{_T,U3} =   1.0NoUnits      # Reference temperature at which viscosity is unity
 end
-#ArrheniusType(args...) = ArrheniusType(args[1], args[2], args[3], args[4])
-
 ArrheniusType(args...) = ArrheniusType(convert(GeoUnit, args[1]), convert(GeoUnit, args[2]),convert(GeoUnit, args[3]),convert(GeoUnit, args[4]))
 
 function param_info(a::ArrheniusType) # info about the struct
@@ -185,9 +182,9 @@ end
 function compute_εII(
     a::ArrheniusType, TauII::_T; T=one(precision(a)), kwargs...
     ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-        return (TauII / η) * 0.5
+    @unpack_val η_0, E_η, T_O, T_η = a
+    η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+    return (TauII / η) * 0.5
 end
 
 """
@@ -213,9 +210,9 @@ function dεII_dτII(a::ArrheniusType,
     T=one(precision(a)),
     kwargs...
     ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-        return 0.5* inv(η)
+    @unpack_val η_0, E_η, T_O, T_η  = a
+    η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+    return 0.5* inv(η)
 end
 
 """
@@ -227,11 +224,9 @@ function compute_τII(a::ArrheniusType, EpsII::_T;
     T=one(precision(a)), 
     kwargs...
     ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
-
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-
-        return 2 * (η * EpsII)
+    @unpack_val η_0, E_η, T_O, T_η  = a
+    η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+    return 2 * (η * EpsII)
 end
 
 function compute_τII!(
@@ -253,10 +248,9 @@ function dτII_dεII(a::ArrheniusType,
     T=one(precision(a)), 
     kwargs...
     ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-
-        return 2 * η
+    @unpack_val η_0, E_η, T_O, T_η  = a
+    η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+    return 2 * η
 end
 
 # Print info 
@@ -267,6 +261,98 @@ function show(io::IO, g::ArrheniusType)
 end
 # ------------------------------------------------------------------------
 
+# Viscosity with partial melting -----------------------------------------
+"""
+    MeltViscous(η_s = 1e22 * Pa*s,η_f = 1e16 * Pa*s,ϕ = 0.0 * NoUnits,S = 1.0 * NoUnits,mfac = -2.8 * NoUnits)
+
+Defines a effective viscosity of partially molten rock as: 
+
+```math  
+    \\eta  = \\min(\\eta_f (1-S(1-\\phi))^m_{fac})
+```
+"""
+@with_kw_noshow struct MeltViscous{T,U1,U2} <: AbstractCreepLaw{T}
+    η_s::GeoUnit{T,U1} = 1e22 * Pa*s # rock's viscosity
+    η_f::GeoUnit{T,U1} = 1e16 * Pa*s # magma's viscosity 
+    S::GeoUnit{T,U2} = 1.0 * NoUnits # factors for hexagons
+    mfac::GeoUnit{T,U2} = -2.8 * NoUnits # factors for hexagons
+end
+MeltViscous(a...) = MeltViscous(convert.(GeoUnit, a)...)
+
+# Calculation routines for linear viscous rheologies
+function compute_εII(
+    a::MeltViscous, TauII::_T; ϕ = 0.0, kwargs...
+    ) where {_T}
+    
+    @unpack_val η_s, η_f, S, mfac = a
+    η = min(η_f * (1.0 - S * (1.0 - ϕ))^mfac, η_s)
+    return (TauII / η) * 0.5
+end
+
+"""
+    
+    compute_εII!(EpsII::AbstractArray{_T,N}, s::ArrheniusType, TauII::AbstractArray{_T,N})
+"""
+function compute_εII!(
+    EpsII::AbstractArray{_T,N}, 
+    a::MeltViscous, 
+    TauII::AbstractArray{_T,N}; 
+    ϕ = 0.0,
+    kwargs...
+) where {N,_T}    
+    @inbounds for i in eachindex(EpsII)
+        EpsII[i] = compute_εII(a, TauII[i], ϕ = ϕ)
+    end
+
+    return nothing
+end
+
+function dεII_dτII(a::MeltViscous, TauII::_T; ϕ = 0.0, kwargs...) where {_T}
+    @unpack_val η_s, η_f, S, mfac = a
+    η = min(η_f * (1.0 - S * (1.0 - ϕ))^mfac, η_s)
+    return 0.5 * inv(η)
+end
+
+"""
+    compute_τII(s::ArrheniusType, EpsII; kwargs...)
+
+Returns second invariant of the stress tensor given a 2nd invariant of strain rate tensor 
+"""
+function compute_τII(a::MeltViscous, EpsII::_T; ϕ = 0.0, kwargs...) where {_T}
+    @unpack_val η_s, η_f, S, mfac = a
+    η = min(η_f * (1.0 - S * (1.0 - ϕ))^mfac, η_s)
+    return 2.0 * η * EpsII
+end
+
+function compute_τII!(
+    TauII::AbstractArray{_T,N}, 
+    a::MeltViscous, 
+    EpsII::AbstractArray{_T,N};
+    ϕ = 0.0,
+    kwargs...
+) where {N,_T}
+    @inbounds for i in eachindex(EpsII)
+        TauII[i] = compute_τII(a, EpsII[i], ϕ = ϕ)
+    end
+
+    return nothing
+end
+
+function dτII_dεII(a::MeltViscous, 
+    EpsII::_T; 
+    ϕ = 0.0, 
+    kwargs...
+    ) where {_T}
+    @unpack_val η_s, η_f, S, mfac = a
+    η = min(η_f * (1.0 - S * (1.0 - ϕ))^mfac, η_s)
+    return 2.0 * η
+end
+
+# Print info 
+function show(io::IO, g::MeltViscous)
+    return print(io, "MeltViscous: η_s=$(g.η_s.val), η_f=$(g.η_f.val), ϕ=$(g.ϕ.val), S=$(g.S.val), mfac=$(g.mfac.val) ")
+end
+#-------------------------------------------------------------------------
 
 # Powerlaw viscous rheology ----------------------------------------------
 """
@@ -291,22 +377,6 @@ function show(io::IO, g::PowerlawViscous)
     return print(io, "Powerlaw viscosity: η0=$(g.η0.val), n=$(g.n.val), ε0=$(g.ε0.val) ")
 end
 #-------------------------------------------------------------------------
-
-#=
-# add methods programatically 
-#for myType in (:LinearViscous, :DiffusionCreep, :DislocationCreep, :ConstantElasticity)
-for myType in (:LinearViscous, :DiffusionCreep, :DislocationCreep)
-
-    @eval begin
-        compute_εII(TauII, a::$(myType), args) = compute_εII(TauII, a; args...) 
-        dεII_dτII(TauII, a::$(myType), args) = dεII_dτII(TauII, a; args...) 
-        compute_τII(EpsII, a::$(myType), args) = compute_τII(EpsII, a; args...) 
-        if Symbol($myType) !== :ConstantElasticity
-            dτII_dεII(EpsII, a::$(myType), args) = dτII_dεII(EpsII, a; args...)
-        end
-    end
-end
-=#
 
 # Help info for the calculation routines
 """

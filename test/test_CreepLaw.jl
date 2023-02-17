@@ -99,4 +99,37 @@ using GeoParams
     sol2    =   dτII_dεII(x3,ε21)
     @test sol2 ≈ 2.0
 
+    # MeltViscous rheology --------------------------------------------
+    x4      = MeltViscous()
+    # For a given stress 
+    τ1      = 1e6
+    # and strain rate
+    ε1      = 0.5e-14
+    args    = (; ϕ = 0.0)
+    @test 1e8 == compute_τII(x4, ε1, args)
+    @test 5e-17 == compute_εII(x4, τ1, args)
+    args    = (; ϕ = 1.0)
+    @test 1e2 == compute_τII(x4, ε1, args)
+    @test 5e-11 == compute_εII(x4, τ1, args)
+    args    = (; ϕ = 0.5)
+    @test 696.4404506368992 == compute_τII(x4, ε1, args)
+    @test 7.17936471873147e-12 == compute_εII(x4, τ1, args)
+
+    # using a vector input ------------------    
+    args    = (; ϕ = 0.0)
+    ε21     = [0.0;0.0;0.0]
+    τ21     = [1e6;0.8e6;0.9e6]
+    compute_εII!(ε21,x4,τ21,args)
+    @test [5.0e-17, 4.0e-17, 4.5e-17] == ε21
+    # and strain rate
+    τ22     = [0.0;0.0;0.0]
+    ε22     = [0.5e-14;1.0e-14;0.2e-14]
+    compute_τII!(τ22,x4,ε22,args)
+    @test [1.0e8, 2.0e8, 4.e7] == τ22
+
+    # derivatives
+    sol1    =   dεII_dτII(x4, τ22[1])
+    @test sol1 ≈ 5e-23
+    sol2    =   dτII_dεII(x4, ε21[1])
+    @test sol2 ≈ 2e22
 end
