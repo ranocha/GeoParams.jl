@@ -23,7 +23,7 @@ function max_length_tuple(t::NTuple{N,Tuple}) where {N}
 end
 
 # broadcast getindex() to NamedTuples
-@inline function ntuple_idx(args::NamedTuple, I::Vararg{Integer,N}) where {N}
+Base.@propagate_inbounds @inline function ntuple_idx(args::NamedTuple, I::Vararg{Integer,N}) where {N}
     k = keys(args)
     v = getindex.(values(args), (I)...)
     return (; zip(k, v)...)
