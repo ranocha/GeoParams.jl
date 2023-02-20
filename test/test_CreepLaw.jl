@@ -99,4 +99,43 @@ using GeoParams
     sol2    =   dτII_dεII(x3,ε21)
     @test sol2 ≈ 2.0
 
+    # ArrheniusType2 rheology --------------------------------------------
+    T       =  25.0*10.0+273.0
+    P       =  10e3*9.81*2700
+    args    =  (; T=T, P=P)
+    x4      =  ArrheniusType2()
+    # For a stress 
+    τ       =  100e6
+    ε       =  compute_εII(x4, τ, args)
+    η       =  0.5 * τ / ε
+    @test η == clamp(x4.η0 * exp((x4.Ea + P * x4.Va) / (x4.R * T) - x4.Ea / (x4.R * x4.T0)), x4.cutoff...)
+    # and strain rate
+    ε       =  1e-15
+    τ       =  compute_τII(x4, ε, args)
+    η       =  0.5 * τ / ε
+    @test η == clamp(x4.η0 * exp((x4.Ea + P * x4.Va) / (x4.R * T) - x4.Ea / (x4.R * x4.T0)), x4.cutoff...)
+    # using a vector input ------------------    
+    T2      =  25.0 .* [1e1;1e2;1e3] .+ 273
+    P2      =  9.81 .* 2700 .* [1e1;1e2;1e3]
+    # and stress 
+    ε2      =  [0.0;0.0;0.0]
+    τ2      =  [1e6;1e7;1e8]
+    args    =  (T=T2, P=P2)
+    compute_εII!(ε2, x4, τ2, args)
+    η2      =  @. 0.5 * τ2 / ε2
+    @test η2 ≈ [clamp(x4.η0 * exp((x4.Ea + P * x4.Va) / (x4.R * T) - x4.Ea / (x4.R * x4.T0)), x4.cutoff...) for (T, P) in zip(T2, P2)]
+    # and strain rate
+    τ2     .=  [0.0;0.0;0.0]
+    ε2     .=  [1e-13;1e-14;1e-15]
+    compute_τII!(τ2, x4, ε2, args)
+    η3      =  @. 0.5 * τ2 / ε2
+    @test η3 ≈ η2
+  
+    # derivatives
+    args    =  (; T=T, P=P)
+    sol1    =  dεII_dτII(x4, τ, args)
+    @test sol1 == 4.9999999999999996e-26
+    sol2    =  dτII_dεII(x4, ε, args)
+    @test sol2 == 2e25
+
 end

@@ -9,7 +9,13 @@
 
 abstract type AbstractCreepLaw{T} <: AbstractConstitutiveLaw{T} end
 
-export isvolumetric, LinearViscous, PowerlawViscous, CorrectionFactor, AbstractCreepLaw, ArrheniusType
+export isvolumetric,
+    LinearViscous,
+    PowerlawViscous,
+    CorrectionFactor,
+    AbstractCreepLaw,
+    ArrheniusType,
+    ArrheniusType2
 
 # This computes correction factors to go from experimental data to tensor format
 function CorrectionFactor(a::AbstractCreepLaw{_T}) where {_T}
@@ -108,7 +114,7 @@ end
 function dεII_dτII(a::LinearViscous, TauII; kwargs...)
     @unpack η = a
 
-    return 0.5*(1.0/η)
+    return 0.5 * (1.0 / η)
 end
 
 """
@@ -168,26 +174,33 @@ or
 
 where ``\\eta_0`` is the reference viscosity [Pa*s] at reference strain rate ``\\dot{\\varepsilon}_0``[1/s], and ``n`` the power law exponent []. 
 """
-@with_kw_noshow struct ArrheniusType{_T,U1,U2,U3} <: AbstractCreepLaw{_T}    
-    η_0::GeoUnit{_T,U1} =   1.0NoUnits      # Pre-exponential factor
-    E_η::GeoUnit{_T,U2} =   23.03NoUnits    # Activation energy (non-dimensional)
-    T_O::GeoUnit{_T,U3} =   1.0NoUnits      # Offset temperature 
-    T_η::GeoUnit{_T,U3} =   1.0NoUnits      # Reference temperature at which viscosity is unity
+@with_kw_noshow struct ArrheniusType{_T,U1,U2,U3} <: AbstractCreepLaw{_T}
+    η_0::GeoUnit{_T,U1} = 1.0NoUnits      # Pre-exponential factor
+    E_η::GeoUnit{_T,U2} = 23.03NoUnits    # Activation energy (non-dimensional)
+    T_O::GeoUnit{_T,U3} = 1.0NoUnits      # Offset temperature 
+    T_η::GeoUnit{_T,U3} = 1.0NoUnits      # Reference temperature at which viscosity is unity
 end
 #ArrheniusType(args...) = ArrheniusType(args[1], args[2], args[3], args[4])
 
-ArrheniusType(args...) = ArrheniusType(convert(GeoUnit, args[1]), convert(GeoUnit, args[2]),convert(GeoUnit, args[3]),convert(GeoUnit, args[4]))
+function ArrheniusType(args...)
+    return ArrheniusType(
+        convert(GeoUnit, args[1]),
+        convert(GeoUnit, args[2]),
+        convert(GeoUnit, args[3]),
+        convert(GeoUnit, args[4]),
+    )
+end
 
 function param_info(a::ArrheniusType) # info about the struct
-    return MaterialParamsInfo(; Equation=L"\tau_{ij} = 2 \eta_0 exp( E_η/(T + T_O) + E_η/(T_η + T_O))  \dot{\varepsilon}_{ij}")
+    return MaterialParamsInfo(;
+        Equation=L"\tau_{ij} = 2 \eta_0 exp( E_η/(T + T_O) + E_η/(T_η + T_O))  \dot{\varepsilon}_{ij}",
+    )
 end
 # Calculation routines for linear viscous rheologies
-function compute_εII(
-    a::ArrheniusType, TauII::_T; T=one(precision(a)), kwargs...
-    ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-        return (TauII / η) * 0.5
+function compute_εII(a::ArrheniusType, TauII::_T; T=one(precision(a)), kwargs...) where {_T}
+    @unpack_val η_0, E_η, T_O, T_η = a
+    η = η_0 * exp(E_η / (T + T_O) - E_η / (T_η + T_O))
+    return (TauII / η) * 0.5
 end
 
 """
@@ -195,27 +208,23 @@ end
     compute_εII!(EpsII::AbstractArray{_T,N}, s::ArrheniusType, TauII::AbstractArray{_T,N})
 """
 function compute_εII!(
-    EpsII::AbstractArray{_T,N}, 
-    a::ArrheniusType, 
-    TauII::AbstractArray{_T,N}; 
+    EpsII::AbstractArray{_T,N},
+    a::ArrheniusType,
+    TauII::AbstractArray{_T,N};
     T=ones(size(TauII))::AbstractArray{_T,N},
-    kwargs...
-) where {N,_T}    
+    kwargs...,
+) where {N,_T}
     @inbounds for i in eachindex(EpsII)
-        EpsII[i] = compute_εII(a, TauII[i], T=T[i])
+        EpsII[i] = compute_εII(a, TauII[i]; T=T[i])
     end
 
     return nothing
 end
 
-function dεII_dτII(a::ArrheniusType, 
-    TauII::_T; 
-    T=one(precision(a)),
-    kwargs...
-    ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
-        return 0.5* inv(η)
+function dεII_dτII(a::ArrheniusType, TauII::_T; T=one(precision(a)), kwargs...) where {_T}
+    @unpack_val η_0, E_η, T_O, T_η = a
+    η = η_0 * exp(E_η / (T + T_O) - E_η / (T_η + T_O))
+    return 0.5 * inv(η)
 end
 
 """
@@ -223,50 +232,176 @@ end
 
 Returns second invariant of the stress tensor given a 2nd invariant of strain rate tensor 
 """
-function compute_τII(a::ArrheniusType, EpsII::_T; 
-    T=one(precision(a)), 
-    kwargs...
-    ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
+function compute_τII(a::ArrheniusType, EpsII::_T; T=one(precision(a)), kwargs...) where {_T}
+    @unpack_val η_0, E_η, T_O, T_η = a
 
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+    η = η_0 * exp(E_η / (T + T_O) - E_η / (T_η + T_O))
 
-        return 2 * (η * EpsII)
+    return 2 * (η * EpsII)
 end
 
 function compute_τII!(
-    TauII::AbstractArray{_T,N}, 
-    a::ArrheniusType, 
-    EpsII::AbstractArray{_T,N}; 
+    TauII::AbstractArray{_T,N},
+    a::ArrheniusType,
+    EpsII::AbstractArray{_T,N};
     T=ones(size(EpsII))::AbstractArray{_T,N},
-    kwargs...
+    kwargs...,
 ) where {N,_T}
     @inbounds for i in eachindex(EpsII)
-        TauII[i] = compute_τII(a, EpsII[i], T= T[i])
+        TauII[i] = compute_τII(a, EpsII[i]; T=T[i])
     end
 
     return nothing
 end
 
-function dτII_dεII(a::ArrheniusType, 
-    EpsII::_T; 
-    T=one(precision(a)), 
-    kwargs...
-    ) where {_T}
-        @unpack_val η_0, E_η, T_O, T_η  = a
-        η = η_0 * exp( E_η / (T + T_O) - E_η / (T_η + T_O))
+function dτII_dεII(a::ArrheniusType, EpsII::_T; T=one(precision(a)), kwargs...) where {_T}
+    @unpack_val η_0, E_η, T_O, T_η = a
+    η = η_0 * exp(E_η / (T + T_O) - E_η / (T_η + T_O))
 
-        return 2 * η
+    return 2 * η
 end
 
 # Print info 
 function show(io::IO, g::ArrheniusType)
-    return print(io, 
-    "ArrheniusType: η_0 = $(Value(g.η_0)), E_η = $(Value(g.E_η)), T_O = $(Value(g.T_O)), T_η = $(Value(g.T_η))"
+    return print(
+        io,
+        "ArrheniusType: η_0 = $(Value(g.η_0)), E_η = $(Value(g.E_η)), T_O = $(Value(g.T_O)), T_η = $(Value(g.T_η))",
+    )
+end
+
+"""
+    ArrheniusType()
+    
+Defines an Arrhenius-type linear viscosity in the form of 
+    \\eta = \\eta_{0} * \\exp\\left(\\frac{E_{\\eta}{T+T_{0}}-\\frac{E_{\\eta}{T_{\\eta}+T_{0}}\\right) 
+
+The (isotropic) linear viscous rheology is given by  
+```math  
+    \\tau_{ij} = 2 \\eta \\dot{\\varepsilon}_{ij} 
+```
+or
+```math  
+    \\dot{\\varepsilon}_{ij}  = {\\tau_{ij}  \\over 2 \\eta }
+```
+
+where ``\\eta_0`` is the reference viscosity [Pa*s] at reference strain rate ``\\dot{\\varepsilon}_0``[1/s], and ``n`` the power law exponent []. 
+From Gulcher et al 2022.
+"""
+@with_kw_noshow struct ArrheniusType2{_T,U1,U2,U3,U4,U5,N} <: AbstractCreepLaw{_T}
+    η0::GeoUnit{_T,U1} = 5e20 * Pa * s      # reference viscosity
+    Ea::GeoUnit{_T,U2} = 200e3 * J / mol     # activation energy
+    Va::GeoUnit{_T,U3} = 2.6e-6 * m^3 / mol   # activation volume
+    T0::GeoUnit{_T,U4} = 1.6e3 * K           # reference temperature
+    R::GeoUnit{_T,U5} = 8.3145 * J / mol / K # universal gas constant
+    cutoff::N = (1e16, 1e25)
+end
+
+function ArrheniusType2(args...)
+    return ArrheniusType2(
+        convert(GeoUnit, args[1]),
+        convert(GeoUnit, args[2]),
+        convert(GeoUnit, args[3]),
+        convert(GeoUnit, args[4]),
+        convert(GeoUnit, args[5]),
+        args[6],
+    )
+end
+
+function param_info(a::ArrheniusType2) # info about the struct
+    return MaterialParamsInfo(;
+        Equation=L"\tau_{ij} = 2 \eta_0 * \exp((E_a + P V_a) / (R T) - E_a / (R * T_0))  \dot{\varepsilon}_{ij}",
+    )
+end
+
+# Calculation routines for linear viscous rheologies
+function compute_εII(
+    a::ArrheniusType2, TauII::_T; P=0.0, T=273.0, depth=0.0, kwargs...
+) where {_T}
+    @unpack_val η0, Ea, Va, T0, R = a
+    η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    η = clamp(η * correction, a.cutoff...)
+    return (TauII / η) * 0.5
+end
+
+"""
+    compute_εII!(EpsII::AbstractArray{_T,N}, s::ArrheniusType2, TauII::AbstractArray{_T,N})
+"""
+function compute_εII!(
+    EpsII::AbstractArray{_T,N},
+    a::ArrheniusType2,
+    TauII::AbstractArray{_T,N};
+    P=zeros(size(TauII))::AbstractArray{_T,N},
+    depth=zeros(size(TauII))::AbstractArray{_T,N},
+    T=fill(273.0, size(TauII))::AbstractArray{_T,N},
+    kwargs...,
+) where {N,_T}
+    @inbounds for i in eachindex(EpsII)
+        TauII[i] = compute_τII(a, EpsII[i]; P=P[i], T=T[i], depth=depth[i])
+    end
+
+    return nothing
+end
+
+function dεII_dτII(
+    a::ArrheniusType2, TauII::_T; P=0.0, T=273.0, depth=0.0, kwargs...
+) where {_T}
+    @unpack_val η0, Ea, Va, T0, R = a
+    η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    η = clamp(η * correction, a.cutoff...)
+    return 0.5 * inv(η)
+end
+
+"""
+    compute_τII(s::ArrheniusType2, EpsII; kwargs...)
+
+Returns second invariant of the stress tensor given a 2nd invariant of strain rate tensor 
+"""
+function compute_τII(
+    a::ArrheniusType2, EpsII::_T; P=0.0, T=273.0, depth=0.0, kwargs...
+) where {_T}
+    @unpack_val η0, Ea, Va, T0, R = a
+    η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    η = clamp(η * correction, a.cutoff...)
+    return 2.0 * (η * EpsII)
+end
+
+function compute_τII!(
+    TauII::AbstractArray{_T,N},
+    a::ArrheniusType2,
+    EpsII::AbstractArray{_T,N};
+    P=zeros(size(TauII))::AbstractArray{_T,N},
+    depth=zeros(size(TauII))::AbstractArray{_T,N},
+    T=fill(273.0, size(TauII))::AbstractArray{_T,N},
+    kwargs...,
+) where {N,_T}
+    @inbounds for i in eachindex(EpsII)
+        TauII[i] = compute_τII(a, EpsII[i]; P=P[i], T=T[i], depth=depth[i])
+    end
+
+    return nothing
+end
+
+function dτII_dεII(
+    a::ArrheniusType2, EpsII::_T; P=0.0, T=273.0, depth=0.0, kwargs...
+) where {_T}
+    @unpack_val η0, Ea, Va, T0, R = a
+    η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    η = clamp(η * correction, a.cutoff...)
+    return 2.0 * η
+end
+
+# Print info 
+function show(io::IO, g::ArrheniusType2)
+    return print(
+        io,
+        "ArrheniusType2: η0 = $(Value(g.η0)), Ea = $(Value(g.Ea)), Va = $(Value(g.Va)), T0 = $(Value(g.T0)), R = $(Value(g.R))",
     )
 end
 # ------------------------------------------------------------------------
-
 
 # Powerlaw viscous rheology ----------------------------------------------
 """
