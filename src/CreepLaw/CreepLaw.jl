@@ -319,8 +319,8 @@ function compute_εII(
 ) where {_T}
     @unpack_val η0, Ea, Va, T0, R = a
     η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
-    correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
-    # correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    # correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
     η = clamp(η * correction, a.cutoff...)
     return (TauII / η) * 0.5
 end
@@ -349,8 +349,8 @@ function dεII_dτII(
 ) where {_T}
     @unpack_val η0, Ea, Va, T0, R = a
     η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
-    correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
-    # correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    # correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
     η = clamp(η * correction, a.cutoff...)
     return 0.5 * inv(η)
 end
@@ -365,8 +365,8 @@ function compute_τII(
 ) where {_T}
     @unpack_val η0, Ea, Va, T0, R = a
     η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
-    correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
-    # correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    # correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
     η = clamp(η * correction, a.cutoff...)
     return 2.0 * (η * EpsII)
 end
@@ -392,8 +392,8 @@ function dτII_dεII(
 ) where {_T}
     @unpack_val η0, Ea, Va, T0, R = a
     η = η0 * exp((Ea + P * Va) / (R * T) - Ea / (R * T0))
-    correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
-    # correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
+    # correction = (depth ≤ 660e3) + (depth > 660e3) * 1e1 
+    correction = (depth ≤ 660e3) + (2600e3 > depth > 660e3) * 1e1 + (depth ≥ 2600e3) * 1e-3
     η = clamp(η * correction, a.cutoff...)
     return 2.0 * η
 end
