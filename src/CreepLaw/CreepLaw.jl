@@ -285,9 +285,9 @@ function compute_εII(
     ) where {_T}
     
     @unpack_val η_s, η_f, S, mfac = a
-    η = η_f * (1.0 - S * (1.0 - ϕ))^mfac
-    η > η_s && (η = η_s)
-    # η = min(η_f * (1.0 - S * (1.0 - ϕ))^mfac, η_s)
+    η =  η_f * fastpow(1.0 - S * (1.0 - ϕ), mfac)
+    check = η > η_s
+    η = check * η_s + !(check) * η
     return (TauII / η) * 0.5
 end
 
@@ -311,8 +311,9 @@ end
 
 function dεII_dτII(a::MeltViscous, TauII::_T; ϕ = 0.0, kwargs...) where {_T}
     @unpack_val η_s, η_f, S, mfac = a
-    η = η_f * (1.0 - S * (1.0 - ϕ))^mfac
-    η > η_s && (η = η_s)
+    η =  η_f * fastpow(1.0 - S * (1.0 - ϕ), mfac)
+    check = η > η_s
+    η = check * η_s + !(check) * η
     return 0.5 * inv(η)
 end
 
@@ -323,8 +324,10 @@ Returns second invariant of the stress tensor given a 2nd invariant of strain ra
 """
 function compute_τII(a::MeltViscous, EpsII::_T; ϕ = 0.0, kwargs...) where {_T}
     @unpack_val η_s, η_f, S, mfac = a
-    η = η_f * (1.0 - S * (1.0 - ϕ))^mfac
-    η > η_s && (η = η_s)
+    η =  η_f * fastpow(1.0 - S * (1.0 - ϕ), mfac)
+    check = η > η_s
+    η = check * η_s + !(check) * η
+
     return 2.0 * η * EpsII
 end
 
@@ -348,8 +351,9 @@ function dτII_dεII(a::MeltViscous,
     kwargs...
     ) where {_T}
     @unpack_val η_s, η_f, S, mfac = a
-    η = η_f * (1.0 - S * (1.0 - ϕ))^mfac
-    η > η_s && (η = η_s)
+    η =  η_f * fastpow(1.0 - S * (1.0 - ϕ), mfac)
+    check = η > η_s
+    η = check * η_s + !(check) * η
     return 2.0 * η
 end
 
